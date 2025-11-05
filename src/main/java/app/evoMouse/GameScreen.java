@@ -14,7 +14,7 @@ import static com.badlogic.gdx.Gdx.input;
 
 /**
  * {@code GameScreen} é a tela principal do jogo "EvoMouse".
- *
+ * <p>
  * Responsável por:
  * <ul>
  *   <li>Gerenciar e renderizar o cenário isométrico.</li>
@@ -22,15 +22,19 @@ import static com.badlogic.gdx.Gdx.input;
  *   <li>Controlar a câmera e a viewport.</li>
  *   <li>Interpretar entradas do usuário (movimento e zoom).</li>
  * </ul>
- *
+ * <p>
  * Esta classe funciona como o loop principal de renderização do jogo.
  */
 public class GameScreen extends ScreenAdapter {
 
-    /** Largura da viewport (em pixels). */
+    /**
+     * Largura da viewport (em pixels).
+     */
     public static final int WIDTH = 320 * 4;
 
-    /** Altura da viewport (em pixels). */
+    /**
+     * Altura da viewport (em pixels).
+     */
     public static final int HEIGHT = 180 * 4;
 
     private final SpriteBatch batch;
@@ -69,7 +73,7 @@ public class GameScreen extends ScreenAdapter {
 
     /**
      * Atualiza e renderiza o jogo a cada frame.
-     *
+     * <p>
      * Este método:
      * <ul>
      *   <li>Limpa o buffer de tela.</li>
@@ -87,12 +91,14 @@ public class GameScreen extends ScreenAdapter {
         batch.setProjectionMatrix(camera.combined);
 
         handleInput();
-        player.update(delta);
+        player.update(delta, renderer.getObjectHitBoxes());
         camera.update();
 
         batch.begin();
         renderer.drawGround(batch, player);
         batch.end();
+
+        renderer.renderHitboxes(camera, player);
     }
 
     /**
