@@ -1,12 +1,15 @@
 package app.evoMouse.player;
 
+import app.evoMouse.IsometricRenderer;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.Animation;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
+import com.badlogic.gdx.math.Rectangle;
 import com.badlogic.gdx.math.Vector2;
+import com.badlogic.gdx.utils.Array;
 
 import static app.evoMouse.IsometricRenderer.TILE_HEIGHT;
 import static app.evoMouse.IsometricRenderer.TILE_WIDTH;
@@ -16,10 +19,10 @@ import static app.evoMouse.IsometricRenderer.TILE_WIDTH;
  * <p>
  * Responsável por:
  * <ul>
- *     <li>Gerenciar a posição e direção do personagem</li>
- *     <li>Processar entrada de teclado (WASD e X)</li>
- *     <li>Executar e alternar entre animações de movimento, idle e ataque</li>
- *     <li>Renderizar o sprite corretamente ajustado ao tile isométrico</li>
+ * <li>Gerenciar a posição e direção do personagem</li>
+ * <li>Processar entrada de teclado (WASD e X)</li>
+ * <li>Executar e alternar entre animações de movimento, idle e ataque</li>
+ * <li>Renderizar o sprite corretamente ajustado ao tile isométrico</li>
  * </ul>
  */
 public class Player implements Entity {
@@ -28,19 +31,29 @@ public class Player implements Entity {
     // === Campos de animação ====================================
     // ============================================================
 
-    /** Animações de caminhada nas quatro direções */
+    /**
+     * Animações de caminhada nas quatro direções
+     */
     private final Animation<TextureRegion> walkUp, walkDown, walkLeft, walkRight;
 
-    /** Animações de idle (parado) nas quatro direções */
+    /**
+     * Animações de idle (parado) nas quatro direções
+     */
     private final Animation<TextureRegion> idleUp, idleDown, idleLeft, idleRight;
 
-    /** Animações de ataque (primeiro golpe) nas quatro direções */
+    /**
+     * Animações de ataque (primeiro golpe) nas quatro direções
+     */
     private final Animation<TextureRegion> attackUpOne, attackDownOne, attackLeftOne, attackRightOne;
 
-    /** Animações de ataque (segundo golpe do combo) nas quatro direções */
+    /**
+     * Animações de ataque (segundo golpe do combo) nas quatro direções
+     */
     private final Animation<TextureRegion> attackUpTwo, attackDownTwo, attackLeftTwo, attackRightTwo;
 
-    /** Direção atual para a qual o jogador está olhando */
+    /**
+     * Direção atual para a qual o jogador está olhando
+     */
     private Direction facing = Direction.DOWN;
 
     /**
@@ -54,35 +67,53 @@ public class Player implements Entity {
     // === Controle de ataque e combo =============================
     // ============================================================
 
-    /** Indica se o jogador está executando uma animação de ataque */
+    /**
+     * Indica se o jogador está executando uma animação de ataque
+     */
     private boolean isAttacking = false;
 
-    /** Estágio atual do ataque: 0 = nenhum, 1 = primeiro ataque, 2 = segundo ataque */
+    /**
+     * Estágio atual do ataque: 0 = nenhum, 1 = primeiro ataque, 2 = segundo ataque
+     */
     private int attackStage = 0;
 
-    /** Tempo decorrido desde o início ou final do último ataque */
+    /**
+     * Tempo decorrido desde o início ou final do último ataque
+     */
     private float attackTimer = 0f;
 
-    /** Tempo limite (em segundos) para permitir o segundo ataque em sequência (combo) */
+    /**
+     * Tempo limite (em segundos) para permitir o segundo ataque em sequência (combo)
+     */
     private final float comboWindow = 0.4f;
 
     // ============================================================
     // === Controle geral de animação e posição ===================
     // ============================================================
 
-    /** Tempo acumulado de execução da animação atual */
+    /**
+     * Tempo acumulado de execução da animação atual
+     */
     private float stateTime;
 
-    /** Animação atualmente em execução (idle, movimento ou ataque) */
+    /**
+     * Animação atualmente em execução (idle, movimento ou ataque)
+     */
     private Animation<TextureRegion> currentAnimation;
 
-    /** Indica se o jogador está se movendo no frame atual */
+    /**
+     * Indica se o jogador está se movendo no frame atual
+     */
     private boolean moving;
 
-    /** Posição do jogador no mundo isométrico (coordenadas X e Y) */
+    /**
+     * Posição do jogador no mundo isométrico (coordenadas X e Y)
+     */
     private final Vector2 pos;
 
-    /** Velocidade de deslocamento do jogador em pixels por frame */
+    /**
+     * Velocidade de deslocamento do jogador em pixels por frame
+     */
     private final float speed = 2f;
 
     // ============================================================
@@ -95,10 +126,10 @@ public class Player implements Entity {
      * Todas as animações são carregadas a partir dos diretórios dentro de
      * <code>assets/sprite_player</code>, seguindo a convenção:
      * <ul>
-     *     <li><b>walk/</b> — Animações de movimento</li>
-     *     <li><b>idle/</b> — Animações paradas</li>
-     *     <li><b>attack/one</b> — Primeiro golpe</li>
-     *     <li><b>attack/two</b> — Segundo golpe</li>
+     * <li><b>walk/</b> — Animações de movimento</li>
+     * <li><b>idle/</b> — Animações paradas</li>
+     * <li><b>attack/one</b> — Primeiro golpe</li>
+     * <li><b>attack/two</b> — Segundo golpe</li>
      * </ul>
      */
     public Player() {
@@ -132,6 +163,26 @@ public class Player implements Entity {
         currentAnimation = idleDown;
     }
 
+    /**
+     * Calcula e retorna o retângulo de colisão (hitbox) do jogador.
+     * <p>
+     * A hitbox é uma pequena área na base do sprite, que define o ponto de contato
+     * real do jogador com os objetos do cenário, permitindo a sensação de profundidade
+     * em um ambiente isométrico.
+     *
+     * @return {@link Rectangle} representando a área de colisão do jogador.
+     */
+    public Rectangle getBounds() {
+        // A base da hitbox deve estar levemente à frente da posição real do sprite,
+        // e ser proporcional à largura dos pés
+        float hitboxWidth = 20f;     // metade do tile para a largura
+        float hitboxHeight = 10f;   // um quarto do tile para a altura
+        float hitboxX = getIsoX() + TILE_WIDTH / 2.7f;  // centraliza na metade do tile
+        float hitboxY = getIsoY() + TILE_HEIGHT / 2f; // assume pos.y está na base
+
+        return new Rectangle(hitboxX, hitboxY, hitboxWidth, hitboxHeight);
+    }
+
     // ============================================================
     // === Atualização por frame =================================
     // ============================================================
@@ -143,9 +194,10 @@ public class Player implements Entity {
      * no plano isométrico. Também gerencia o ciclo de ataque e combos.
      *
      * @param delta tempo (em segundos) desde o último frame
+     * @param objectHitBoxes coleçao de hitboxes de objetos no mapa para verificao de colisão
      */
     @Override
-    public void update(float delta) {
+    public void update(float delta, Array<Rectangle> objectHitBoxes) {
         moving = false;
         Vector2 direction = new Vector2();
 
@@ -211,9 +263,29 @@ public class Player implements Entity {
         }
 
         // --- Atualiza posição ---
+        // Calcular próxima posição se houver movimento
         if (!direction.isZero()) {
-            direction.nor(); // Normaliza para manter velocidade constante na diagonal
-            pos.add(direction.scl(speed));
+            direction.nor(); // Normaliza para velocidade constante em diagonais
+            Vector2 nextPos = new Vector2(pos).add(direction.scl(speed));
+
+            Rectangle nextHitbox = new Rectangle(
+                    nextPos.x + TILE_WIDTH / 2.7f,
+                    nextPos.y + TILE_HEIGHT / 2f,
+                    20f,
+                    10f
+            );
+
+            boolean collided = false;
+            for (Rectangle r : objectHitBoxes) {
+                if (nextHitbox.overlaps(r)) {
+                    collided = true;
+                    break;
+                }
+            }
+
+            if (!collided) {
+                pos.set(nextPos);
+            }
         }
 
         // --- Retorna para idle se parado ---

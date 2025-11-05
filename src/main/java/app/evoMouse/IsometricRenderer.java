@@ -3,8 +3,12 @@ package app.evoMouse;
 import app.evoMouse.player.Player;
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
+import com.badlogic.gdx.graphics.OrthographicCamera;
 import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
+import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Array;
 
 import java.util.Random;
 
@@ -14,22 +18,22 @@ import java.util.Random;
  * <p>
  * A {@code IsometricRenderer} é a classe principal para:
  * <ul>
- *   <li>Gerar um mapa procedural (matriz de inteiros) representando os tiles do terreno;</li>
- *   <li>Desenhar o terreno (camada de chão) e os objetos do cenário (camada superior);</li>
- *   <li>Renderizar o jogador respeitando a profundidade e sobreposição isométrica;</li>
- *   <li>Regenerar o mapa dinamicamente quando o jogador pressiona {@code G}.</li>
+ * <li>Gerar um mapa procedural (matriz de inteiros) representando os tiles do terreno;</li>
+ * <li>Desenhar o terreno (camada de chão) e os objetos do cenário (camada superior);</li>
+ * <li>Renderizar o jogador respeitando a profundidade e sobreposição isométrica;</li>
+ * <li>Regenerar o mapa dinamicamente quando o jogador pressiona {@code G}.</li>
  * </ul>
  * </p>
  *
  * <p>
  * Cada tile do mapa é representado por um número inteiro que define seu tipo:
  * <ul>
- *   <li>0 → {@code grass_2}</li>
- *   <li>1 → {@code grass}</li>
- *   <li>2 → {@code tree_1}</li>
- *   <li>3 → {@code tree_2}</li>
- *   <li>4 → {@code tronco}</li>
- *   <li>5 → {@code grass_3}</li>
+ * <li>0 → {@code grass_2}</li>
+ * <li>1 → {@code grass}</li>
+ * <li>2 → {@code tree_1}</li>
+ * <li>3 → {@code tree_2}</li>
+ * <li>4 → {@code tronco}</li>
+ * <li>5 → {@code grass_3}</li>
  * </ul>
  * </p>
  *
@@ -55,6 +59,17 @@ public class IsometricRenderer {
      * Cada célula contém um inteiro que representa um objeto (árvore, tronco, etc.).
      */
     private int[][] objectLayer;
+
+    /**
+     * Array que armazena os retângulos de colisão (hitboxes) de todos os objetos do cenário.
+     * Utilizado para detecção de colisão do jogador.
+     */
+    private Array<Rectangle> objectHitBox = new Array<>();
+
+    /**
+     * Renderer usado para desenhar formas geométricas (como as hitboxes) para debug.
+     */
+    private ShapeRenderer shapeRenderer = new ShapeRenderer();
 
     /**
      * Largura padrão de cada tile (em pixels).
@@ -102,10 +117,10 @@ public class IsometricRenderer {
      * <p>
      * Este método:
      * <ul>
-     *   <li>Desenha o chão (camada 1);</li>
-     *   <li>Desenha os objetos do cenário (camada 2);</li>
-     *   <li>Posiciona o jogador corretamente entre os elementos de acordo com a profundidade;</li>
-     *   <li>Permite regenerar o mapa com a tecla {@code G}.</li>
+     * <li>Desenha o chão (camada 1);</li>
+     * <li>Desenha os objetos do cenário (camada 2);</li>
+     * <li>Posiciona o jogador corretamente entre os elementos de acordo com a profundidade;</li>
+     * <li>Permite regenerar o mapa com a tecla {@code G}.</li>
      * </ul>
      * </p>
      *
@@ -164,6 +179,23 @@ public class IsometricRenderer {
         }
     }
 
+    public Array<Rectangle> getObjectHitBoxes() {
+        return objectHitBox;
+    }
+
+    public void renderHitboxes(OrthographicCamera camera, Player player) {
+        shapeRenderer.setProjectionMatrix(camera.combined);
+        shapeRenderer.begin(ShapeRenderer.ShapeType.Line);
+        shapeRenderer.setColor(1, 1, 1, 1);
+        for (Rectangle rect : objectHitBox) {
+            shapeRenderer.rect(rect.x, rect.y, rect.width, rect.height);
+        }
+        // Desenha a hitbox do player
+        Rectangle playerHitbox = player.getBounds();
+        shapeRenderer.rect(playerHitbox.x, playerHitbox.y, playerHitbox.width, playerHitbox.height);
+        shapeRenderer.end();
+    }
+
     /**
      * Determina se o jogador deve ser renderizado sobre o tile atual.
      *
@@ -188,8 +220,8 @@ public class IsometricRenderer {
      * <p>
      * O método cria duas matrizes bidimensionais de mesmo tamanho:
      * <ul>
-     *   <li>{@code groundLayer} → define o tipo do chão em cada tile;</li>
-     *   <li>{@code objectLayer} → define o tipo de objeto (ou nenhum) em cada tile.</li>
+     * <li>{@code groundLayer} → define o tipo do chão em cada tile;</li>
+     * <li>{@code objectLayer} → define o tipo de objeto (ou nenhum) em cada tile.</li>
      * </ul>
      * </p>
      *
@@ -208,9 +240,14 @@ public class IsometricRenderer {
         groundLayer = new int[size][size];
         objectLayer = new int[size][size];
 
+        objectHitBox.clear();
+
         // Preenche cada célula
         for (int row = 0; row < size; row++) {
             for (int col = 0; col < size; col++) {
+
+                float x = (col - row) * (TILE_WIDTH / 2f);
+                float y = (col + row) * (TILE_HEIGHT / 4f);
 
                 // --- Camada de chão ---
                 int groundRand = r.nextInt(100);
@@ -224,6 +261,29 @@ public class IsometricRenderer {
                 else if (objRand < 10) objectLayer[row][col] = 2; // tree_2
                 else if (objRand < 13) objectLayer[row][col] = 3; // tronco
                 else objectLayer[row][col] = 0;                   // vazio
+
+                // === GERAR HITBOXES ===
+                int objectType = objectLayer[row][col];
+
+                // CORREÇÃO: Usar parênteses para garantir que a hitbox só seja criada
+                // se o tile for de objeto (1, 2 ou 3) E o chão for do tipo 1 (que permite a renderização).
+                if ((objectType == 1 || objectType == 2 || objectType == 3) && groundLayer[row][col] == 1) {
+                    // cria hitbox correspondente ao objectType
+
+                    // Ajuste de posição e tamanho conforme o objeto
+                    Rectangle hitbox = switch (objectLayer[row][col]) {
+                        case 1 ->
+                                new Rectangle(x + TILE_WIDTH / 3f , y + 50f, 23f, 15f);         // Ajuste conforme o sprite da árvore
+                        case 2 ->
+                                new Rectangle(x + TILE_WIDTH / 3f, y + 50f, 22f, 9f);         // Ajuste conforme o sprite da árvore
+                        case 3 ->
+                                new Rectangle(x, y + TILE_HEIGHT / 2f, TILE_WIDTH, TILE_HEIGHT / 4f);         // Ajuste conforme o sprite do tronco
+                        default -> null;
+                    };
+
+
+                    if (hitbox != null) objectHitBox.add(hitbox);
+                }
             }
         }
 
