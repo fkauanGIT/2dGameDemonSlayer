@@ -1,5 +1,6 @@
 package app.evoMouse.factory.CombatSystem;
 
+import app.evoMouse.effects.Impact;
 import app.evoMouse.effects.WaterSlash;
 import app.evoMouse.enemies.OniEnemy;
 import app.evoMouse.factory.EntitysObejcts.WorldObject;
@@ -46,6 +47,8 @@ public class CombatSystem {
                 float dx = oni.getBaseX() - player.getFeetX(), dy = oni.getBaseY() - player.getFeetY();
                 float len = Math.max(1f, (float) Math.hypot(dx, dy));
                 oni.knockback(dx / len, dy / len, WaterSlash.KNOCKBACK_SPEED, WaterSlash.KNOCKBACK_LIFT);
+                Impact.freeze(0.09f);
+                Impact.shake(0.55f);
             }
 
             if (obj.isDead()) {
@@ -73,6 +76,10 @@ public class CombatSystem {
             if (!obj.isAlive() || (obj instanceof OniEnemy) != enemies) continue;
 
             if (attackHitbox.overlaps(obj.getBoundsHitbox())) {
+                if (enemies) {
+                    Impact.freeze(0.04f);
+                    Impact.shake(0.18f);
+                }
                 obj.takeDamage(damage);
 
                 // Ao morrer, deixa de colidir na hora; o objeto continua na lista

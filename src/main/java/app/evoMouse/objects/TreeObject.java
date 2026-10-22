@@ -8,6 +8,7 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Rectangle;
+import com.badlogic.gdx.utils.Array;
 
 import static app.evoMouse.IsometricRenderer.TILE_HEIGHT;
 import static app.evoMouse.IsometricRenderer.TILE_WIDTH;
@@ -51,6 +52,18 @@ public class TreeObject extends WorldObject {
 
     private float time;
     private final float windPhase;
+
+    /**
+     * Personagens que não podem sumir atrás de uma copa: {x na tela, y do corpo na tela, y dos pés no chão}.
+     * Atualizado pelo renderer a cada frame.
+     */
+    private static final Array<float[]> focus = new Array<>();
+
+    /**
+     * Opacidade atual da árvore: fica translúcida quando alguém está atrás dela
+     */
+    private float canopyAlpha = 1f;
+    private static final float CANOPY_SEE_THROUGH = 0.38f;
     private float shakeTimer = 0f;
     private float petalTimer = MathUtils.random(1f);
 
@@ -89,6 +102,9 @@ public class TreeObject extends WorldObject {
         super.update(delta);
         time += delta;
         if (shakeTimer > 0) shakeTimer -= delta;
+
+        float target = hidesSomeone() ? CANOPY_SEE_THROUGH : 1f;
+        canopyAlpha += (target - canopyAlpha) * Math.min(1f, 8f * delta);
 
         if (type.petals && isAlive()) {
             petalTimer -= delta;
@@ -130,6 +146,10 @@ public class TreeObject extends WorldObject {
                 ? MathUtils.sin(shakeTimer * 60f) * 5f * (shakeTimer / SHAKE_TIME) : 0f;
         float topOffset = wind + shake;
 
+        Color base = batch.getColor();
+        float r = base.r, g = base.g, b = base.b, a = base.a;
+        batch.setColor(r, g, b, a * canopyAlpha);
+
         float color = batch.getPackedColor();
         setVertex(0, left, bottom, color, 0f, 1f);                // inferior esquerdo
         setVertex(1, left + topOffset, top, color, 0f, 0f);       // superior esquerdo
@@ -137,7 +157,41 @@ public class TreeObject extends WorldObject {
         setVertex(3, right, bottom, color, 1f, 1f);               // inferior direito
 
         batch.draw(texture, vertices, 0, vertices.length);
+        batch.setColor(r, g, b, a);
         particles.render(batch);
+    }
+
+    /**
+     * @return true se algum personagem está atrás da árvore, na altura da copa
+     */
+    private boolean hidesSomeone() {
+        float canopyBottom = baseY + z + 24f;
+        float canopyTop = baseY + z + (texture.getHeight() - type.anchorY) * PIXEL_SCALE;
+        float halfWidth = type.canopyHalfWidth + 12f;
+        for (float[] f : focus) {
+            boolean behind = f[2] > baseY - 4f;
+            boolean inside = Math.abs(f[0] - baseX) < halfWidth && f[1] > canopyBottom && f[1] < canopyTop;
+            if (behind && inside) return true;
+        }
+        return false;
+    }
+
+    /**
+     * Limpa a lista de personagens que as copas não devem esconder (chamar a cada frame).
+     */
+    public static void clearFocus() {
+        focus.clear();
+    }
+
+    /**
+     * Registra um personagem que as copas não devem esconder.
+     *
+     * @param screenX X do personagem
+     * @param bodyY   Y do meio do corpo na tela (já com a altura)
+     * @param groundY Y dos pés no plano do chão (para saber se está atrás do tronco)
+     */
+    public static void addFocus(float screenX, float bodyY, float groundY) {
+        focus.add(new float[]{screenX, bodyY, groundY});
     }
 
     private void setVertex(int index, float vx, float vy, float color, float u, float v) {

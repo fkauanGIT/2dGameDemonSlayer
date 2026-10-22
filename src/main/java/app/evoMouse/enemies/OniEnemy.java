@@ -1,6 +1,7 @@
 package app.evoMouse.enemies;
 
 import app.evoMouse.Terrain;
+import app.evoMouse.effects.Impact;
 import app.evoMouse.effects.PixelParticles;
 import app.evoMouse.factory.EntitysObejcts.WorldObject;
 import app.evoMouse.lighting.Light;
@@ -354,6 +355,7 @@ public class OniEnemy extends WorldObject {
     }
 
     private void impactDust() {
+        Impact.shake(0.4f);
         for (int i = 0; i < 10; i++) {
             PixelParticles.Particle p = particles.emit(x + MathUtils.random(-8f, 8f), y + z + airZ + MathUtils.random(5f, 30f),
                     -knockVX * 0.1f + MathUtils.random(-40f, 40f), MathUtils.random(10f, 50f),
@@ -486,7 +488,7 @@ public class OniEnemy extends WorldObject {
         // O dano sai na metade do golpe, se o jogador ainda estiver perto
         if (!attackHitDone && stateTime >= duration * 0.5f) {
             attackHitDone = true;
-            if (distanceToTarget() < ATTACK_RANGE * 1.4f) target.takeDamage(ATTACK_DAMAGE);
+            if (distanceToTarget() < ATTACK_RANGE * 1.4f && target.takeDamage(ATTACK_DAMAGE)) Impact.shake(0.3f);
         }
         if (stateTime >= duration) {
             attackCooldown = ATTACK_COOLDOWN;
@@ -663,6 +665,13 @@ public class OniEnemy extends WorldObject {
         eyeLight.x = tree.getBaseX();
         eyeLight.y = tree.getCanopyScreenY() - 9f;
         return eyeLight;
+    }
+
+    /**
+     * @return Y do meio do corpo na tela (com altura do terreno e do pulo)
+     */
+    public float getBodyScreenY() {
+        return y + z + airZ + 28f;
     }
 
     public boolean isHidden() {

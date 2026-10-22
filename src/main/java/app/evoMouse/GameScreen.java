@@ -1,5 +1,6 @@
 package app.evoMouse;
 
+import app.evoMouse.effects.Impact;
 import app.evoMouse.factory.EntitysObejcts.WorldObject;
 import app.evoMouse.lighting.Light;
 import app.evoMouse.lighting.LightSystem;
@@ -72,6 +73,11 @@ public class GameScreen extends ScreenAdapter {
     private static final float CAMERA_FOLLOW_SPEED = 6f;
 
     /**
+     * Posição da câmera seguindo o jogador, antes do tremor de impacto
+     */
+    private float cameraBaseX, cameraBaseY;
+
+    /**
      * Cria uma nova instância de {@code GameScreen}.
      *
      * @param batch o {@link SpriteBatch} responsável por desenhar os elementos na tela.
@@ -100,7 +106,9 @@ public class GameScreen extends ScreenAdapter {
         player.setTerrain(renderer);
 
         // Começa já centrada no jogador
-        camera.position.set(playerCenterX(), playerCenterY(), 0);
+        cameraBaseX = playerCenterX();
+        cameraBaseY = playerCenterY();
+        camera.position.set(cameraBaseX, cameraBaseY, 0);
 
         hudRenderer = new ShapeRenderer();
         hudMatrix = new Matrix4().setToOrtho2D(0, 0, WIDTH, HEIGHT);
@@ -128,13 +136,18 @@ public class GameScreen extends ScreenAdapter {
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         handleInput();
-        player.update(delta, renderer.getObjectCollision());
+
+        // Hit-stop: durante o congelamento o mundo para (delta 0), a tela continua desenhando
+        float worldDelta = Impact.worldDelta(delta);
+        if (worldDelta > 0f) player.update(worldDelta, renderer.getObjectCollision());
         followPlayer(delta);
+        Impact.update(delta);
+        camera.position.set(cameraBaseX + Impact.offsetX(), cameraBaseY + Impact.offsetY(), 0);
         camera.update();
         batch.setProjectionMatrix(camera.combined); // depois de mover a câmera, para não atrasar 1 frame
 
         batch.begin();
-        renderer.drawGround(batch, player);
+        renderer.drawGround(batch, player, worldDelta);
         batch.end();
 
         renderLighting(delta);
@@ -151,8 +164,8 @@ public class GameScreen extends ScreenAdapter {
         float targetX = playerCenterX();
         float targetY = playerCenterY();
         float t = 1f - (float) Math.exp(-CAMERA_FOLLOW_SPEED * delta);
-        camera.position.x += (targetX - camera.position.x) * t;
-        camera.position.y += (targetY - camera.position.y) * t;
+        cameraBaseX += (targetX - cameraBaseX) * t;
+        cameraBaseY += (targetY - cameraBaseY) * t;
     }
 
     /**

@@ -150,7 +150,7 @@ public class IsometricRenderer implements Terrain {
     }
 
     // === RENDERIZAÇÃO PRINCIPAL ===
-    public void drawGround(SpriteBatch batch, Player player) {
+    public void drawGround(SpriteBatch batch, Player player, float delta) {
         // Regenerar mapa ao apertar G
         if (Gdx.input.isKeyJustPressed(Input.Keys.G)) {
             generateLayers();
@@ -166,7 +166,21 @@ public class IsometricRenderer implements Terrain {
         }
 
         // Avança animações de morte e remove os objetos que já terminaram
-        float delta = Gdx.graphics.getDeltaTime();
+        // (delta vem do GameScreen: é 0 durante o hit-stop)
+
+        // Copas ficam translúcidas quando um personagem está atrás delas
+        TreeObject.clearFocus();
+        TreeObject.addFocus(player.getFeetX(), player.getFeetY() + player.getZ() + 25f, player.getFeetY());
+        for (Clone clone : player.getClones()) {
+            float feetY = clone.getIsoY() + Player.FEET_OFFSET_Y;
+            TreeObject.addFocus(clone.getIsoX() + TILE_WIDTH / 2f, feetY + clone.getZ() + 25f, feetY);
+        }
+        for (WorldObject obj : worldObjects) {
+            if (obj instanceof OniEnemy oni && !oni.isHidden() && oni.isAlive()) {
+                TreeObject.addFocus(oni.getBaseX(), oni.getBodyScreenY(), oni.getBaseY());
+            }
+        }
+
         for (WorldObject obj : worldObjects) {
             if (obj instanceof OniEnemy oni) oni.setTarget(player);
             obj.update(delta);
